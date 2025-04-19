@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>NBA Playoff Re‑Watch Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <h1>NBA Playoff Re‑Watch Checker</h1>
+
+  <section id="filters">
+    <div class="switch">
+      <input type="checkbox" id="f-pts30" value="pts30">
+      <label for="f-pts30">30+ Pts</label>
+    </div>
+    <div class="switch">
+      <input type="checkbox" id="f-pts40" value="pts40">
+      <label for="f-pts40">40+ Pts</label>
+    </div>
+    <div class="switch">
+      <input type="checkbox" id="f-pts50" value="pts50">
+      <label for="f-pts50">50+ Pts</label>
+    </div>
+    <div class="switch">
+      <input type="checkbox" id="f-tripleDouble" value="tripleDouble">
+      <label for="f-tripleDouble">Triple‑Double</label>
+    </div>
+    <div class="switch">
+      <input type="checkbox" id="f-close4" value="close4">
+      <label for="f-close4">Knapp Q4</label>
+    </div>
+    <div class="switch">
+      <input type="checkbox" id="f-closeGame" value="closeGame">
+      <label for="f-closeGame">Knapp</label>
+    </div>
+    <div class="switch">
+      <input type="checkbox" id="f-overtime" value="overtime">
+      <label for="f-overtime">OT</label>
+    </div>
+  </section>
+
+  <section id="controls">
+    <button id="prev" class="control-btn" title="Vortag">←</button>
+    <input type="date" id="date">
+    <button id="next" class="control-btn" title="Nächstetag">→</button>
+    <button id="load" class="control-btn">Laden</button>
+  </section>
+
+  <section id="games"></section>
+
+  <template id="game-template">
+    <a class="game" href="" target="_blank">
+      <div class="teams">
+        <img class="logo away" src="" alt="">
+        <span class="name away"></span>
+        <span class="at">@</span>
+        <span class="name home"></span>
+        <img class="logo home" src="" alt="">
+      </div>
+      <div class="info">
+        <span class="round"></span>
+        <span class="gameNum"></span>
+        <span class="game-type"></span>
+        <span class="series-text"></span>
+      </div>
+      <div class="badges"></div>
+    </a>
+  </template>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>

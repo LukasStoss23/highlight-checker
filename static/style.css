@@ -1,0 +1,72 @@
+*,*::before,*::after{box-sizing:border-box}
+body{font-family:system-ui,sans-serif;max-width:900px;margin:0 auto;padding:2rem;background:#eef1f6;color:#222}
+h1{text-align:center;font-size:2.8rem;margin-bottom:2rem}
+
+/* Filter-Checkboxen */
+#filters{display:flex;flex-wrap:wrap;gap:1rem 2rem;justify-content:center;margin-bottom:2rem}
+#filters label{font-size:1.1rem;cursor:pointer}
+#filters input{transform:scale(1.3);margin-right:0.3rem}
+
+/* Datum & Buttons */
+#controls{display:flex;justify-content:center;gap:0.5rem;align-items:center;margin-bottom:2.5rem}
+#controls input[type=date]{padding:0.6rem;border:1px solid #ccc;border-radius:0.4rem;font-size:1rem}
+#controls .control-btn{padding:0.6rem 1rem;border:none;background:#007acc;color:#fff;border-radius:0.4rem;font-size:1rem;cursor:pointer;transition:background 0.2s}
+#controls .control-btn:hover{background:#005fa3}
+
+/* Spiele-Liste */
+#games{display:flex;flex-direction:column;gap:2rem}
+.game{display:block;background:#dde6f4;border-radius:1rem;padding:2rem;box-shadow:0 8px 16px rgba(0,0,0,0.1);text-decoration:none;color:inherit}
+.teams{display:flex;align-items:center;gap:1.2rem;font-size:1.6rem;margin-bottom:1rem}
+.logo{width:56px;border-radius:50%;background:#fff;padding:4px}
+.at{color:#555}
+.info{font-size:1.1rem;margin-bottom:1rem;color:#333}
+.game-type{font-weight:700}
+.series-text{margin-top:0.3rem;color:#555}
+.badges{display:flex;flex-wrap:wrap;gap:1rem}
+.badge{padding:0.6rem 1.2rem;border-radius:0.6rem;font-size:1rem;text-transform:uppercase;font-weight:700}
+.badge.pts30{background:#ffeb3b;color:#333}
+.badge.pts40{background:#ffc107;color:#333}
+.badge.pts50{background:#ff9800;color:#fff}
+.badge.tripleDouble{background:#8bc34a;color:#fff}
+.badge.close4{background:#03a9f4;color:#fff}
+.badge.closeGame{background:#7e57c2;color:#fff}
+.badge.overtime{background:#e91e63;color:#fff}
+/* … dein bestehendes CSS … */
+
+/* Custom Switch Styling */
+.switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    user-select: none;
+  }
+  .switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .switch label {
+    padding: 0.4rem 1rem;
+    border-radius: 1rem;
+    background: #ccc;
+    color: #555;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .switch input:checked + label {
+    background: #007acc;
+    color: #fff;
+  }
+  
+  /* Platz etwas Luft um die Switches */
+  #filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem 1.5rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+  
