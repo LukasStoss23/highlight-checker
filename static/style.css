@@ -69,4 +69,17 @@ h1{text-align:center;font-size:2.8rem;margin-bottom:2rem}
     justify-content: center;
     margin-bottom: 2rem;
   }
-  
+
+  @media (max-width: 600px) {
+    body {padding: 1rem;}
+    h1 {font-size: 2rem;}
+    #controls {flex-direction: column;gap: 0.5rem;}
+    #controls input[type=date]{width:100%;}
+    #games {gap: 1rem;}
+    .game {padding: 1rem;}
+    .teams {flex-direction: column;align-items: flex-start;gap: 0.5rem;font-size: 1.4rem;margin-bottom: 0.8rem;}
+    .logo {width: 48px;}
+    #filters {gap: 0.5rem 1rem;}
+    #filters label {font-size: 1rem;}
+    .badge {font-size: 0.9rem;padding: 0.4rem 1rem;}
+  }
