@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: nba-app-backend
+    name: highlight-checker
     env: python
     region: oregon
     branch: main
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn nba_backend:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT
     autoDeploy: true
