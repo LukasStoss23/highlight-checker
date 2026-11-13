@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body data-user="{{ user['username'] }}">
   <header class="topbar">
     <div class="brand">
       <svg class="brand-ball" viewBox="0 0 32 32" aria-hidden="true">
@@ -23,9 +23,18 @@
         <p class="tagline">Spoilerfrei direkt zu „All Possessions“</p>
       </div>
     </div>
+    <div class="top-actions">
+    <span class="user-pill" title="Angemeldet als {{ user['username'] }}">
+      <span class="avatar">{{ user['username'][:1]|upper }}</span>
+      <span class="uname">{{ user['username'] }}</span>
+    </span>
     <button id="open-settings" class="icon-btn" aria-label="Einstellungen" title="Einstellungen">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
     </button>
+    <button id="logout" class="icon-btn" aria-label="Abmelden" title="Abmelden">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+    </button>
+    </div>
   </header>
 
   <main class="wrap">
@@ -59,6 +68,18 @@
         <button class="chip" data-f="tripleDouble">Triple-Double</button>
       </div>
       <p class="hint">Badges siehst du nur für Filter, die du anklickst – so bleibt der Rest eine Überraschung.</p>
+    </section>
+
+    <section id="nba-login-banner" class="banner" hidden>
+      <div class="banner-text">
+        <strong>Einmalig einrichten: Auto-Login &amp; Kino-Modus</strong>
+        <span>Mit dem Browser-Skript meldet sich dieser Browser automatisch mit deinen gespeicherten NBA-Daten bei nba.com an, und „All Possessions“ startet bildschirmfüllend ohne Zeitleiste. Anleitung in den Einstellungen.</span>
+      </div>
+      <div class="banner-actions">
+        <button type="button" class="btn primary" id="banner-setup">Einrichten</button>
+        <button type="button" class="btn" id="banner-done">Erledigt</button>
+        <button type="button" class="btn" id="banner-app">Ich nutze die NBA-App</button>
+      </div>
     </section>
 
     <section id="games" class="games" aria-live="polite"></section>
@@ -104,7 +125,7 @@
 
     <section class="sheet-section">
       <h3>NBA-Account</h3>
-      <p class="muted">Deine NBA-ID (League Pass). Das Passwort wird verschlüsselt auf deinem Server gespeichert und nie wieder an den Browser geschickt.</p>
+      <p class="muted">Deine NBA-ID (League Pass) – gehört nur zu deinem Konto <strong>{{ user['username'] }}</strong>. Das Passwort wird verschlüsselt auf dem Server gespeichert. Die Highlight-Checker-Seite zeigt es nie an – nur dein installiertes Browser-Skript (unten) kann es mit seinem persönlichen Schlüssel abrufen, um dich bei nba.com anzumelden.</p>
       <form id="account-form" autocomplete="on">
         <label class="field">
           <span>E-Mail</span>
@@ -125,6 +146,65 @@
           <button type="button" id="delete-account" class="btn danger" hidden>Entfernen</button>
         </div>
       </form>
+    </section>
+
+    <section class="sheet-section">
+      <h3>Mein Konto</h3>
+      <p class="muted">Angemeldet als <strong>{{ user['username'] }}</strong>. Nach einer Passwortänderung werden alle anderen Geräte abgemeldet.</p>
+      <form id="pw-form" autocomplete="on">
+        <input type="text" name="username" autocomplete="username" value="{{ user['username'] }}" hidden>
+        <label class="field">
+          <span>Aktuelles Passwort</span>
+          <input type="password" id="old-pw" autocomplete="current-password" required>
+        </label>
+        <label class="field">
+          <span>Neues Passwort <small class="muted">(min. 8 Zeichen)</small></span>
+          <input type="password" id="new-pw" autocomplete="new-password" minlength="8" required>
+        </label>
+        <div class="row">
+          <button type="submit" class="btn">Passwort ändern</button>
+          <button type="button" id="logout-2" class="btn">Abmelden</button>
+        </div>
+      </form>
+    </section>
+
+    {% if user['is_admin'] %}
+    <section class="sheet-section" id="admin-section">
+      <h3>Benutzerverwaltung <span class="tag admin">Admin</span></h3>
+      <label class="toggle">
+        <input type="checkbox" id="opt-signup">
+        <span class="track"></span>
+        <span>Registrierung auf der Login-Seite erlauben</span>
+      </label>
+      <ul id="user-list" class="user-list"></ul>
+      <form id="new-user-form" class="inline-form" autocomplete="off">
+        <input id="new-username" placeholder="Benutzername" autocomplete="off" autocapitalize="none" required>
+        <input id="new-password" type="password" placeholder="Passwort (min. 8)" autocomplete="new-password" required>
+        <button type="submit" class="btn primary">Anlegen</button>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="sheet-section">
+      <h3>Abspielen auf diesem Gerät</h3>
+      <div class="seg" role="radiogroup" aria-label="Abspielen in">
+        <label><input type="radio" name="play-target" value="web" checked><span>Browser (nba.com)</span></label>
+        <label><input type="radio" name="play-target" value="app"><span>NBA-App</span></label>
+      </div>
+      <p class="muted" id="play-target-hint"></p>
+    </section>
+
+    <section class="sheet-section" id="script-section">
+      <h3>Auto-Login &amp; Kino-Modus (Browser-Skript)</h3>
+      <p class="muted">Ein kleines Skript für <strong>Tampermonkey</strong>, das nur auf nba.com läuft: Ist dein Browser dort nicht angemeldet, holt es deine oben gespeicherten NBA-Daten vom Highlight Checker und meldet dich an. Dann spielt „All Possessions“ im echten nba.com-Player – bildschirmfüllend, ohne Zeitleiste und ohne sichtbare Ergebnisse.</p>
+      <ol class="steps">
+        <li>Oben unter „NBA-Account“ E-Mail und Passwort speichern.</li>
+        <li><strong>Computer:</strong> <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">Tampermonkey</a> installieren. <span class="muted">Chrome/Edge: in den Erweiterungs-Details von Tampermonkey „Nutzerskripts zulassen“ einschalten.</span><br>
+            <strong>iPhone/iPad:</strong> die kostenlose App <a href="https://apps.apple.com/app/userscripts/id1463298887" target="_blank" rel="noopener">Userscripts</a> (Justin Wasack) installieren und unter Einstellungen → Safari → Erweiterungen aktivieren, Zugriff auf „nba.com“ erlauben.</li>
+        <li><button type="button" class="btn primary" id="install-script">Skript installieren</button> <span class="muted">→ Tampermonkey: „Installieren“ klicken. iPhone: in Safari das Userscripts-Symbol (Puzzleteil in der Adressleiste) antippen → „Installieren“.</span></li>
+      </ol>
+      <p class="muted">Jede Installation enthält einen eigenen persönlichen Schlüssel, mit dem das Skript dein NBA-Passwort abrufen kann – nicht weitergeben. Verlorenes Gerät? „Alle Skripte sperren“ – danach auf deinen Geräten neu installieren. Auch ein Passwortwechsel oder das Löschen der NBA-Daten sperrt alle Skripte.</p>
+      <button type="button" class="btn danger" id="regen-token">Alle Skripte sperren</button>
     </section>
 
     <section class="sheet-section">

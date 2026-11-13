@@ -36,7 +36,8 @@ HEADERS = {"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"}
 
 NBA_GAMES_URL = "https://www.nba.com/games"
 NBA_GAME_URL = "https://www.nba.com/game/{away}-vs-{home}-{gid}"
-NBA_LOGO_URL = "https://cdn.nba.com/logos/nba/{tid}/global/L/logo.svg"
+NBA_APP_GAME_URL = "https://nba.smart.link/2g4lj7g0e?gameid="
+NBA_LOGO_URL ="https://cdn.nba.com/logos/nba/{tid}/global/L/logo.svg"
 ESPN_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
 ESPN_SUMMARY_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary"
 
@@ -95,11 +96,15 @@ def _links_for(cd: Dict[str, Any]) -> Dict[str, Any]:
     cg = _find_stream(streams, "full-game-highlights", "condensed game")
     return {
         "gameUrl": base,
-        "allPossessionsUrl": (f"{base}?watchCondensedGame=true&streamId={ap['mediaKindVideoId']}"
+        # watchFullGame statt watchCondensedGame: bei watchCondensedGame überschreibt nba.com
+        # die streamId immer mit dem ersten "Condensed Game"-Stream.
+        "allPossessionsUrl": (f"{base}?watchFullGame=true&streamId={ap['mediaKindVideoId']}"
                               if ap else None),
         "condensedUrl": (f"{base}?watchCondensedGame=true&streamId={cg['mediaKindVideoId']}"
                          if cg else None),
         "watchUrl": f"{base}?watch",
+        # offizieller NBA-App-Link (Handy mit App: öffnet das Spiel in der App, sonst nba.com)
+        "appUrl": NBA_APP_GAME_URL + cd["gameId"],
     }
 
 

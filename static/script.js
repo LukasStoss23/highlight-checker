@@ -12,18 +12,68 @@ const LABELS = {
   overtime: "Verlängerung",
 };
 
+// Browser-Einstellungen pro Benutzer getrennt speichern
+const USER = document.body.dataset.user || "";
 const store = {
-  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  get(k, d) { try { const v = localStorage.getItem(`${USER}:${k}`); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(`${USER}:${k}`, JSON.stringify(v)); } catch {} },
 };
+
+// Session abgelaufen -> zurück zur Anmeldung
+async function apiFetch(url, opts) {
+  const res = await fetch(url, opts);
+  if (res.status === 401) { location.replace("/login"); throw new Error("Nicht angemeldet"); }
+  return res;
+}
 
 const state = {
   games: [],
   filters: new Set(store.get("hc.filters", [])),
   showBadges: store.get("hc.showBadges", false),
   newTab: store.get("hc.newTab", true),
+  // "web" = nba.com-Player (Computer, mit Browser-Skript), "app" = NBA-App.
+  // Auf Handys sperrt nba.com League-Pass-Videos im Browser ("Open in App") – dort also App.
+  playTarget: store.get("hc.playTarget", /iPhone|iPod|Android.+Mobile/i.test(navigator.userAgent) ? "app" : "web"),
   reqId: 0,
 };
+
+// ── Abspielen: Browser oder NBA-App ────────────────────────
+const PLAY_HINTS = {
+  web: "Öffnet den nba.com-Player direkt im „All Possessions“-Stream. Mit dem Browser-Skript (unten) meldet sich dein Browser dort automatisch an, und das Video läuft bildschirmfüllend ohne Zeitleiste.",
+  app: "Öffnet das Spiel in der NBA-App (dort bist du meist schon angemeldet). In der App dann „All Possessions“ wählen – ohne App landest du im App Store. Tipp: in der NBA-App „Hide Scores“ einschalten. Auf Handys ist das der einzige Weg – nba.com spielt League Pass dort im Browser nicht ab.",
+};
+function setPlayTarget(v, rerender = true) {
+  state.playTarget = v;
+  store.set("hc.playTarget", v);
+  $$('input[name="play-target"]').forEach(r => (r.checked = r.value === v));
+  $("#play-target-hint").textContent = PLAY_HINTS[v];
+  syncBanner();
+  if (rerender) render();
+}
+function syncBanner() {
+  $("#nba-login-banner").hidden = state.playTarget !== "web" || store.get("hc.nbaLoginDone", false);
+}
+$$('input[name="play-target"]').forEach(r => r.addEventListener("change", () => setPlayTarget(r.value)));
+$("#banner-done").addEventListener("click", () => { store.set("hc.nbaLoginDone", true); syncBanner(); });
+$("#banner-setup").addEventListener("click", () => {
+  $("#open-settings").click();
+  setTimeout(() => $("#script-section").scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+});
+$("#install-script").addEventListener("click", async e => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const { url } = await api("POST", "/api/script/install-link", {});
+    location.href = url; // Tampermonkey bzw. Userscripts (iOS) erkennen die .user.js-Seite
+  } catch (err) { toast(`Fehler: ${err.message}`); }
+  finally { btn.disabled = false; }
+});
+$("#regen-token").addEventListener("click", async () => {
+  if (!confirm("Alle installierten Browser-Skripte sperren? Sie müssen danach auf deinen Geräten neu installiert werden.")) return;
+  try { await api("POST", "/api/script/token", {}); toast("Alle Skripte gesperrt – bitte auf deinen Geräten neu installieren"); }
+  catch (err) { toast(err.message); }
+});
+$("#banner-app").addEventListener("click", () => { setPlayTarget("app"); toast("Links öffnen jetzt die NBA-App – änderbar in den Einstellungen"); });
 
 // ── Datum ──────────────────────────────────────────────────
 const dateInput = $("#date");
@@ -95,7 +145,7 @@ async function loadGames() {
   const id = ++state.reqId;
   skeleton();
   try {
-    const res = await fetch(`/api/games?date=${dateInput.value}`);
+    const res = await apiFetch(`/api/games?date=${dateInput.value}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
     if (id !== state.reqId) return;
@@ -190,8 +240,14 @@ function render() {
     ghost.target = target;
     play.target = target;
 
-    if (g.allPossessionsUrl) {
-      play.href = g.allPossessionsUrl;
+    if (g.allPossessionsUrl && state.playTarget === "app") {
+      play.href = g.appUrl;
+      label.textContent = "In NBA-App öffnen";
+      play.title = "Öffnet das Spiel in der NBA-App – dort „All Possessions“ wählen";
+    } else if (g.allPossessionsUrl) {
+      // Über die eigene Zwischenseite: so öffnet iOS nicht die NBA-App, sondern Safari
+      // (das Browser-Skript erkennt die nba.com-Seite dann am streamId-Parameter)
+      play.href = "/go?to=" + encodeURIComponent(g.allPossessionsUrl);
       label.textContent = "All Possessions";
     } else if (g.status === "final") {
       play.href = g.watchUrl;
@@ -248,7 +304,7 @@ function applySettings(s) {
 }
 
 async function api(method, url, body) {
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     method,
     headers: body ? { "Content-Type": "application/json" } : {},
     body: body ? JSON.stringify(body) : undefined,
@@ -264,7 +320,79 @@ $("#open-settings").addEventListener("click", async () => {
   dlg.showModal();
   try { applySettings(await api("GET", "/api/settings")); }
   catch (e) { toast(`Einstellungen nicht ladbar: ${e.message}`); }
+  if ($("#admin-section")) loadAdmin();
 });
+
+// ── Konto ──────────────────────────────────────────────────
+async function logout() {
+  try { await fetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); }
+  finally { location.replace("/login"); }
+}
+$("#logout").addEventListener("click", logout);
+$("#logout-2").addEventListener("click", logout);
+
+$("#pw-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  try {
+    await api("POST", "/api/me/password", { oldPassword: $("#old-pw").value, newPassword: $("#new-pw").value });
+    $("#old-pw").value = $("#new-pw").value = "";
+    toast("Passwort geändert – andere Geräte abgemeldet, Browser-Skripte gesperrt (neu installieren)");
+  } catch (err) { toast(err.message); }
+});
+
+// ── Benutzerverwaltung (nur Admins) ────────────────────────
+function renderAdmin(data) {
+  $("#opt-signup").checked = data.signupOpen;
+  const ul = $("#user-list");
+  ul.innerHTML = "";
+  data.users.forEach(u => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="who"></span><span class="tags"></span>`;
+    $(".who", li).textContent = u.username + (u.id === data.me ? " (du)" : "");
+    const tags = $(".tags", li);
+    if (u.isAdmin) tags.insertAdjacentHTML("beforeend", `<span class="tag admin">Admin</span> `);
+    if (u.hasNba) tags.insertAdjacentHTML("beforeend", `<span class="tag">NBA</span>`);
+    if (u.id !== data.me) {
+      const mk = document.createElement("button");
+      mk.type = "button";
+      mk.className = "mini";
+      mk.textContent = u.isAdmin ? "Admin entziehen" : "Zum Admin";
+      mk.onclick = async () => {
+        try { renderAdmin(await api("POST", `/api/admin/users/${u.id}/admin`, { isAdmin: !u.isAdmin })); }
+        catch (err) { toast(err.message); }
+      };
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "mini danger";
+      del.textContent = "Löschen";
+      del.onclick = async () => {
+        if (!confirm(`Benutzer „${u.username}“ inkl. NBA-Zugangsdaten löschen?`)) return;
+        try { renderAdmin(await api("DELETE", `/api/admin/users/${u.id}`)); toast("Benutzer gelöscht"); }
+        catch (err) { toast(err.message); }
+      };
+      li.append(mk, del);
+    }
+    ul.appendChild(li);
+  });
+}
+async function loadAdmin() {
+  try { renderAdmin(await api("GET", "/api/admin/users")); }
+  catch (err) { toast(err.message); }
+}
+if ($("#admin-section")) {
+  $("#opt-signup").addEventListener("change", async e => {
+    try { renderAdmin(await api("POST", "/api/admin/signup", { open: e.target.checked })); }
+    catch (err) { toast(err.message); }
+  });
+  $("#new-user-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      renderAdmin(await api("POST", "/api/admin/users", { username: $("#new-username").value.trim(), password: $("#new-password").value }));
+      $("#new-username").value = $("#new-password").value = "";
+      toast("Benutzer angelegt");
+    } catch (err) { toast(err.message); }
+  });
+}
 dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
 
 $("#account-form").addEventListener("submit", async e => {
@@ -314,6 +442,7 @@ $("#opt-new-tab").addEventListener("change", e => {
 
 // ── Start ──────────────────────────────────────────────────
 syncChips();
+setPlayTarget(state.playTarget, false);
 (() => {
   const q = new URLSearchParams(location.search).get("date");
   if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) return setDate(q, false);

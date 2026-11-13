@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Weiter zu nba.com …</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #000;
+           color: #95a0c0; font: 600 15px/1.4 system-ui, -apple-system, sans-serif; text-align: center; }
+    a { color: #ff8a5c; }
+  </style>
+</head>
+<body>
+  <div>
+    <p>🏀 Öffne „All Possessions“ …</p>
+    <p><small>Passiert nichts? <a id="fallback" href="{{ target }}">Hier tippen</a> (kann auf dem iPhone die NBA-App öffnen).</small></p>
+  </div>
+  <script>
+    // Weiterleitung per Skript statt Antippen: iOS öffnet dabei nicht die NBA-App
+    location.replace({{ target | tojson }});
+  </script>
+</body>
+</html>
