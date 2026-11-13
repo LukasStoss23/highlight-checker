@@ -1,0 +1,16 @@
+[Unit]
+Description=Highlight Checker (spoilerfreie NBA All-Possessions-Links)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=__USER__
+WorkingDirectory=__DIR__
+Environment=HC_DATA_DIR=__DIR__/data
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__DIR__/.venv/bin/gunicorn main:app --bind 0.0.0.0:__PORT__ --workers 1 --threads 8 --timeout 60
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
