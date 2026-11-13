@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Anmelden · Highlight Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23ff6b35'/%3E%3Cpath d='M2 16h28M16 2v28M6 6c5 5 5 15 0 20M26 6c-5 5-5 15 0 20' stroke='%23111' stroke-width='1.6' fill='none'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-body">
+  <main class="auth-card">
+    <div class="auth-brand">
+      <svg class="brand-ball" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="14"/>
+        <path d="M2 16h28M16 2v28M6 6c5 5 5 15 0 20M26 6c-5 5-5 15 0 20"/>
+      </svg>
+      <h1>Highlight Checker</h1>
+      <p class="tagline">Spoilerfrei direkt zu „All Possessions“</p>
+    </div>
+
+    {% if first_user %}
+      <p class="auth-note">Willkommen! Lege das erste Konto an – es bekommt Admin-Rechte und kann weitere Benutzer verwalten.</p>
+    {% elif signup_open %}
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab on" data-mode="login" role="tab" aria-selected="true">Anmelden</button>
+        <button type="button" class="tab" data-mode="register" role="tab" aria-selected="false">Registrieren</button>
+      </div>
+    {% endif %}
+
+    <form id="auth-form" data-mode="{{ 'register' if first_user else 'login' }}" novalidate>
+      <label class="field">
+        <span>Benutzername</span>
+        <input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required minlength="3" maxlength="32" autofocus>
+      </label>
+      <label class="field">
+        <span>Passwort</span>
+        <div class="pw-wrap">
+          <input id="password" name="password" type="password" autocomplete="{{ 'new-password' if first_user else 'current-password' }}" required>
+          <button type="button" class="pw-toggle" aria-label="Passwort anzeigen">👁</button>
+        </div>
+        <small class="muted reg-only" {% if not first_user %}hidden{% endif %}>Mindestens 8 Zeichen.</small>
+      </label>
+      <label class="field reg-only" {% if not first_user %}hidden{% endif %}>
+        <span>Passwort wiederholen</span>
+        <input id="password2" type="password" autocomplete="new-password">
+      </label>
+
+      <label class="toggle">
+        <input type="checkbox" id="remember" checked>
+        <span class="track"></span>
+        <span>Angemeldet bleiben <small class="muted">(30 Tage auf diesem Gerät)</small></span>
+      </label>
+
+      <div id="auth-error" class="status bad" hidden></div>
+
+      <button type="submit" class="btn primary wide" id="submit">{{ 'Konto erstellen' if first_user else 'Anmelden' }}</button>
+    </form>
+
+    {% if not first_user and not signup_open %}
+      <p class="auth-note small">Noch kein Konto? Ein Admin kann dich in den Einstellungen anlegen.</p>
+    {% endif %}
+  </main>
+
+  <script>
+    const form = document.getElementById("auth-form");
+    const err = document.getElementById("auth-error");
+    const submit = document.getElementById("submit");
+    const pw = document.getElementById("password");
+
+    function setMode(mode) {
+      form.dataset.mode = mode;
+      document.querySelectorAll(".tab").forEach(t => {
+        const on = t.dataset.mode === mode;
+        t.classList.toggle("on", on);
+        t.setAttribute("aria-selected", on);
+      });
+      document.querySelectorAll(".reg-only").forEach(el => el.hidden = mode !== "register");
+      pw.autocomplete = mode === "register" ? "new-password" : "current-password";
+      submit.textContent = mode === "register" ? "Konto erstellen" : "Anmelden";
+      err.hidden = true;
+    }
+    document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setMode(t.dataset.mode)));
+    document.querySelector(".pw-toggle").addEventListener("click", () => {
+      pw.type = pw.type === "password" ? "text" : "password";
+    });
+
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const mode = form.dataset.mode;
+      const username = document.getElementById("username").value.trim();
+      const password = pw.value;
+      err.hidden = true;
+      if (mode === "register") {
+        if (password.length < 8) return showErr("Passwort: mindestens 8 Zeichen");
+        if (password !== document.getElementById("password2").value) return showErr("Die Passwörter stimmen nicht überein");
+      }
+      if (!username || !password) return showErr("Bitte Benutzername und Passwort eingeben");
+      submit.disabled = true;
+      try {
+        const res = await fetch(mode === "register" ? "/api/auth/register" : "/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password, remember: document.getElementById("remember").checked }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Fehler ${res.status}`);
+        location.replace("/");
+      } catch (ex) {
+        showErr(ex.message);
+      } finally {
+        submit.disabled = false;
+      }
+    });
+
+    function showErr(msg) { err.textContent = msg; err.hidden = false; }
+  </script>
+</body>
+</html>

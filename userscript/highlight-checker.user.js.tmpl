@@ -1,0 +1,353 @@
+// ==UserScript==
+// @name         Highlight Checker – NBA spoilerfrei
+// @namespace    highlight-checker
+// @version      __HC_VERSION__
+// @description  Meldet diesen Browser automatisch bei nba.com an (mit den im Highlight Checker gespeicherten NBA-Daten) und zeigt "All Possessions" im Kino-Modus ohne Zeitleiste.
+// @match        https://www.nba.com/*
+// @run-at       document-start
+// @noframes
+// @grant        GM_xmlhttpRequest
+// @grant        GM.xmlHttpRequest
+// @grant        unsafeWindow
+// @inject-into  content
+// @connect      __HC_HOST__
+// @updateURL    __HC_SERVER__/userscript/highlight-checker.meta.js
+// @downloadURL  __HC_SERVER__/userscript/t/__HC_TOKEN__/highlight-checker.user.js
+// ==/UserScript==
+// Läuft mit Tampermonkey (Desktop) und der App "Userscripts" von Justin Wasack (iOS/Safari).
+
+(function () {
+  "use strict";
+
+  // Persönlich für: __HC_USER__ – nicht weitergeben (enthält deinen Zugriffsschlüssel)
+  const HC_SERVER = "__HC_SERVER__";
+  const HC_TOKEN = "__HC_TOKEN__";
+
+  const IDENTITY = "https://identity.nba.com/api/v1";
+  const NBA_HEADERS = {
+    "content-type": "application/json",
+    "x-client-platform": "web",
+    "x-client-id": "Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs", // öffentliche ID der nba.com-Webseite
+  };
+  // Cookies, die die nba.com-Webseite nach ihrem eigenen Login setzt:
+  const AUTH_FLAG_COOKIE = "nba-authenticated";   // "1" = Seite fragt das Profil ab
+  const PLAYBACK_TOKEN_COOKIE = "mediakindauth2token"; // Abspiel-Token, wird ohne Cookie neu geholt
+  const ATTEMPT_KEY = "hc_login_attempt";
+  const FIXUP_KEY = "hc_session_fixup";
+
+  const startUrl = location.href;
+  const url = new URL(startUrl);
+  // nba.com entfernt watchCondensedGame kurz nach dem Laden aus der URL – streamId bleibt
+  const isRecap = url.pathname.startsWith("/game/") &&
+    (url.searchParams.has("watchCondensedGame") || url.searchParams.has("streamId"));
+  if (!isRecap) return;
+
+  const log = (...a) => console.info("[Highlight Checker]", ...a);
+
+  // ── Kompatibilität Tampermonkey / Userscripts (Safari) ────────────────
+  // Anfragen an identity.nba.com müssen aus der nba.com-Seite selbst kommen
+  // (deren Herkunft + Cookies). Tampermonkey bietet dafür unsafeWindow; in
+  // Safari ("Userscripts") fehlt es – dort läuft die Anfrage über eine kleine
+  // Brücke, die als Skript in die Seite eingefügt wird (nba.com hat keine CSP).
+  const hasPageWindow = typeof unsafeWindow !== "undefined" && unsafeWindow && unsafeWindow !== window;
+  let bridgeReady = false;
+
+  function installBridge() {
+    if (bridgeReady) return;
+    bridgeReady = true;
+    const s = document.createElement("script");
+    s.textContent = `(() => {
+      document.addEventListener("hc-req", async (ev) => {
+        let d; try { d = JSON.parse(ev.detail); } catch (e) { return; }
+        let res;
+        try {
+          const r = await fetch(d.url, d.opts);
+          res = { id: d.id, ok: r.ok, status: r.status, text: await r.text() };
+        } catch (e) { res = { id: d.id, ok: false, status: 0, text: "", error: String(e) }; }
+        document.dispatchEvent(new CustomEvent("hc-res", { detail: JSON.stringify(res) }));
+      });
+    })();`;
+    (document.head || document.documentElement).appendChild(s);
+    s.remove();
+  }
+
+  function bridgeFetch(url, opts) {
+    installBridge();
+    return new Promise((resolve) => {
+      const id = Math.random().toString(36).slice(2);
+      const onRes = (ev) => {
+        let r; try { r = JSON.parse(ev.detail); } catch (e) { return; }
+        if (r.id !== id) return;
+        document.removeEventListener("hc-res", onRes);
+        if (r.error) log("Seiten-Anfrage fehlgeschlagen:", r.error);
+        resolve({ ok: r.ok, status: r.status, json: async () => JSON.parse(r.text || "{}") });
+      };
+      document.addEventListener("hc-res", onRes);
+      document.dispatchEvent(new CustomEvent("hc-req", { detail: JSON.stringify({ id, url, opts }) }));
+    });
+  }
+
+  const pageFetch = hasPageWindow ? unsafeWindow.fetch.bind(unsafeWindow) : bridgeFetch;
+
+  function gmRequest(details) {
+    if (typeof GM !== "undefined" && GM && typeof GM.xmlHttpRequest === "function") return GM.xmlHttpRequest(details);
+    if (typeof GM_xmlhttpRequest === "function") return GM_xmlhttpRequest(details);
+    details.onerror && details.onerror();
+    return null;
+  }
+
+  // ── 1. Spoilerschutz: Zeitleiste weg + Kino-Modus ─────────────────────
+  // Die Seite bleibt schwarz abgedeckt, bis der Player da ist – so ist das
+  // Ergebnis auf der Spielseite nie zu sehen, auch nicht im Fehlerfall.
+  const css = `
+    #progress-bar-container { visibility: hidden !important; }
+    html.hc-cinema, html.hc-cinema body { overflow: hidden !important; }
+    html.hc-cinema [class*="MkVideoPlayer_playerWrap"] {
+      position: fixed !important; inset: 0 !important;
+      width: 100vw !important; height: 100vh !important;
+      max-width: none !important; max-height: none !important;
+      z-index: 2147483000 !important; background: #000 !important;
+      display: flex !important; align-items: center !important; justify-content: center !important;
+    }
+    html.hc-cinema [class*="MkVideoPlayer_playerWrap"] > div {
+      width: min(100vw, calc(100vh * 16 / 9)) !important; height: auto !important;
+      aspect-ratio: 16 / 9 !important; max-height: 100vh !important;
+    }
+    html.hc-cinema:not(.hc-player) body::before {
+      content: ""; position: fixed; inset: 0; background: #000; z-index: 2147482000;
+    }
+    #hc-toast {
+      position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+      z-index: 2147483600; max-width: min(560px, calc(100vw - 32px));
+      padding: 12px 16px; border-radius: 12px; background: rgba(20, 28, 54, .95);
+      color: #eef1fa; font: 600 14px/1.4 system-ui, sans-serif; box-shadow: 0 10px 30px rgba(0,0,0,.4);
+    }
+    #hc-toast a { color: #ff8a5c; }
+    #hc-exit {
+      position: fixed; top: 12px; right: 12px; z-index: 2147483500;
+      padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.2);
+      background: rgba(0,0,0,.5); color: #fff; font: 600 12px system-ui, sans-serif;
+      cursor: pointer; opacity: .35; transition: opacity .2s;
+    }
+    #hc-exit:hover { opacity: 1; }
+    html:not(.hc-cinema) #hc-exit { display: none; }
+  `;
+  const style = document.createElement("style");
+  style.id = "hc-style";
+  style.textContent = css;
+  document.documentElement.appendChild(style);
+  document.documentElement.classList.add("hc-cinema");
+
+  function onReady(fn) {
+    if (document.body) fn();
+    else document.addEventListener("DOMContentLoaded", fn, { once: true });
+  }
+
+  let toastTimer;
+  function toast(html, ms = 6000) {
+    onReady(() => {
+      let t = document.getElementById("hc-toast");
+      if (!t) {
+        t = document.createElement("div");
+        t.id = "hc-toast";
+        document.body.appendChild(t);
+      }
+      t.innerHTML = html;
+      clearTimeout(toastTimer);
+      if (ms) toastTimer = setTimeout(() => t.remove(), ms);
+    });
+  }
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const SIGN_IN_LINK = '<a href="https://www.nba.com/account/sign-in">manuell anmelden</a>';
+  const EXIT_HINT = "„✕ Kino-Modus aus“ zeigt die Seite (Achtung: inkl. Ergebnis).";
+
+  onReady(() => {
+    // Sichtbares Lebenszeichen: so sieht man, dass das Skript läuft
+    if (!document.getElementById("hc-toast")) toast("🏀 Highlight Checker aktiv – Kino-Modus an, Zeitleiste aus", 3500);
+
+    const exit = document.createElement("button");
+    exit.id = "hc-exit";
+    exit.type = "button";
+    exit.textContent = "✕ Kino-Modus aus";
+    exit.addEventListener("click", () => document.documentElement.classList.remove("hc-cinema"));
+    document.body.appendChild(exit);
+
+    // Abdeckung erst entfernen, wenn der Player wirklich da ist
+    const started = Date.now();
+    let warned = false;
+    const iv = setInterval(() => {
+      if (document.querySelector('[class*="MkVideoPlayer_playerWrap"]')) {
+        document.documentElement.classList.add("hc-player");
+        clearInterval(iv);
+      } else if (!warned && Date.now() - started > 25000) {
+        warned = true;
+        if (!document.getElementById("hc-toast")) {
+          toast("Der Player startet nicht. Evtl. ist der Recap noch nicht verfügbar. " + EXIT_HINT, 0);
+        }
+      }
+    }, 300);
+
+    // Hinweis zum Ton (Autoplay startet je nach Browser stumm)
+    const iv2 = setInterval(() => {
+      const v = document.querySelector("video");
+      if (v && !v.paused && v.currentTime > 0.5) {
+        clearInterval(iv2);
+        if (v.muted) toast("🔇 Ton einschalten: Taste <b>M</b> oder Lautsprecher-Symbol im Player", 5000);
+      }
+    }, 1000);
+    setTimeout(() => clearInterval(iv2), 120000);
+  });
+
+  // ── 2. Automatisch bei nba.com anmelden ──────────────────────────────
+  function getCookie(name) {
+    const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/[-.]/g, "\\$&") + "=([^;]*)"));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  // Macht nach einem Login das, was auch das offizielle nba.com-Login tut:
+  // Login-Merker setzen und das alte (anonyme) Abspiel-Token verwerfen,
+  // damit die Seite beim Neuladen eines mit deinem Abo holt.
+  function markSiteLoggedIn() {
+    document.cookie = AUTH_FLAG_COOKIE + "=1; path=/; max-age=" + 90 * 24 * 3600 + "; secure; samesite=lax";
+    document.cookie = PLAYBACK_TOKEN_COOKIE + "=; path=/; max-age=0";
+  }
+
+  function reloadToStart() {
+    history.replaceState(null, "", startUrl);
+    location.reload();
+  }
+
+  // -> { state: "in" | "out" | "unknown", email }
+  async function loginState() {
+    try {
+      const r = await pageFetch(IDENTITY + "/profile?entitlements=true",
+        { credentials: "include", headers: NBA_HEADERS });
+      const b = await r.json().catch(() => ({}));
+      if (r.ok) {
+        const d = b.data || {};
+        return { state: "in", email: ((d.result || d.user || {}).email || "").toLowerCase() };
+      }
+      const codes = (b.errorCodes || []).join(" ");
+      return { state: /COOKIE|AUTH|TOKEN|SESSION/i.test(codes) || r.status === 401 ? "out" : "unknown" };
+    } catch (e) {
+      log("Profil-Abfrage fehlgeschlagen", e);
+      return { state: "unknown" };
+    }
+  }
+
+  function hcGet(path) {
+    return new Promise((resolve, reject) => {
+      gmRequest({
+        method: "GET",
+        url: HC_SERVER + path,
+        headers: { "X-HC-Token": HC_TOKEN },
+        timeout: 10000,
+        onload: (r) => {
+          let body = {};
+          try { body = JSON.parse(r.responseText); } catch (e) { /* ignore */ }
+          if (r.status === 200) resolve(body);
+          else reject(new Error(body.error || "Highlight Checker antwortet mit HTTP " + r.status));
+        },
+        onerror: () => reject(new Error("Highlight Checker (" + HC_SERVER + ") nicht erreichbar")),
+        ontimeout: () => reject(new Error("Highlight Checker antwortet nicht")),
+      });
+    });
+  }
+
+  // Bei nba.com abmelden und das richtige Konto anmelden lassen (nach Neuladen)
+  async function switchAccount() {
+    toast("Melde das andere NBA-Konto ab …", 0);
+    try {
+      await pageFetch(IDENTITY + "/logout", { method: "POST", credentials: "include", headers: NBA_HEADERS });
+    } catch (e) { log("Logout fehlgeschlagen", e); }
+    document.cookie = AUTH_FLAG_COOKIE + "=; path=/; max-age=0";
+    document.cookie = PLAYBACK_TOKEN_COOKIE + "=; path=/; max-age=0";
+    sessionStorage.removeItem(ATTEMPT_KEY);
+    sessionStorage.removeItem(FIXUP_KEY);
+    reloadToStart();
+  }
+
+  function getCredentials() {
+    return new Promise((resolve, reject) => {
+      gmRequest({
+        method: "GET",
+        url: HC_SERVER + "/api/script/nba-credentials",
+        headers: { "X-HC-Token": HC_TOKEN },
+        timeout: 10000,
+        onload: (r) => {
+          let body = {};
+          try { body = JSON.parse(r.responseText); } catch (e) { /* ignore */ }
+          if (r.status === 200 && body.email && body.password) resolve(body);
+          else reject(new Error(body.error || "Highlight Checker antwortet mit HTTP " + r.status));
+        },
+        onerror: () => reject(new Error("Highlight Checker (" + HC_SERVER + ") nicht erreichbar")),
+        ontimeout: () => reject(new Error("Highlight Checker antwortet nicht")),
+      });
+    });
+  }
+
+  async function login(creds) {
+    const r = await pageFetch(IDENTITY + "/auth", {
+      method: "POST",
+      credentials: "include",
+      headers: NBA_HEADERS,
+      body: JSON.stringify({ email: creds.email, password: creds.password }),
+    });
+    const b = await r.json().catch(() => ({}));
+    if (!r.ok || (b.status && b.status !== "success")) {
+      throw new Error((b.data && b.data.message) || "NBA-Login fehlgeschlagen (HTTP " + r.status + ")");
+    }
+  }
+
+  (async () => {
+    const { state, email: activeEmail } = await loginState();
+    log("Anmeldestatus bei nba.com:", state);
+
+    if (state === "in") {
+      sessionStorage.removeItem(ATTEMPT_KEY);
+      // Ist das angemeldete NBA-Konto das im Highlight Checker gespeicherte?
+      try {
+        const wanted = ((await hcGet("/api/script/nba-account")).email || "").toLowerCase();
+        if (wanted && activeEmail && wanted !== activeEmail) {
+          toast("⚠️ Bei nba.com ist <b>" + esc(activeEmail) + "</b> angemeldet, im Highlight Checker ist <b>" +
+                esc(wanted) + "</b> gespeichert. <a href=\"#\" id=\"hc-switch\">Konto wechseln</a>", 0);
+          onReady(() => {
+            const a = document.getElementById("hc-switch");
+            if (a) a.addEventListener("click", (ev) => { ev.preventDefault(); switchAccount(); });
+          });
+          return;
+        }
+      } catch (e) {
+        log("Konto-Abgleich nicht möglich:", e.message);
+      }
+      // Bei der NBA angemeldet, aber die Webseite weiß es noch nicht -> einmal reparieren
+      if (getCookie(AUTH_FLAG_COOKIE) !== "1" && !sessionStorage.getItem(FIXUP_KEY)) {
+        sessionStorage.setItem(FIXUP_KEY, "1");
+        log("Login-Merker fehlt – wird gesetzt, Seite lädt neu");
+        markSiteLoggedIn();
+        reloadToStart();
+      }
+      return;
+    }
+    if (state !== "out") return;
+
+    // Schleifenschutz: höchstens ein automatischer Versuch pro 2 Minuten
+    const last = Number(sessionStorage.getItem(ATTEMPT_KEY) || 0);
+    if (Date.now() - last < 120000) {
+      toast("Automatische Anmeldung hat nicht geklappt – " + SIGN_IN_LINK + ". " + EXIT_HINT, 0);
+      return;
+    }
+    sessionStorage.setItem(ATTEMPT_KEY, String(Date.now()));
+    toast("🏀 Highlight Checker meldet dich bei nba.com an …", 0);
+    try {
+      await login(await getCredentials());
+      log("NBA-Login erfolgreich");
+      markSiteLoggedIn();
+      toast("✅ Angemeldet – Recap wird geladen …", 0);
+      reloadToStart();
+    } catch (e) {
+      log("Anmeldung fehlgeschlagen:", e.message);
+      toast("⚠️ " + esc(e.message) + " – " + SIGN_IN_LINK + ". " + EXIT_HINT, 0);
+    }
+  })();
+})();
