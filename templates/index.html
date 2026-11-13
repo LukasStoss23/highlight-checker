@@ -2,72 +2,163 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <title>NBA Playoff Re‑Watch Checker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/style.css">
+  <title>Highlight Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23ff6b35'/%3E%3Cpath d='M2 16h28M16 2v28M6 6c5 5 5 15 0 20M26 6c-5 5-5 15 0 20' stroke='%23111' stroke-width='1.6' fill='none'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <h1>NBA Playoff Re‑Watch Checker</h1>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-ball" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="14"/>
+        <path d="M2 16h28M16 2v28M6 6c5 5 5 15 0 20M26 6c-5 5-5 15 0 20"/>
+      </svg>
+      <div>
+        <h1>Highlight Checker</h1>
+        <p class="tagline">Spoilerfrei direkt zu „All Possessions“</p>
+      </div>
+    </div>
+    <button id="open-settings" class="icon-btn" aria-label="Einstellungen" title="Einstellungen">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+    </button>
+  </header>
 
-  <section id="filters">
-    <div class="switch">
-      <input type="checkbox" id="f-pts30" value="pts30">
-      <label for="f-pts30">30+ Pts</label>
-    </div>
-    <div class="switch">
-      <input type="checkbox" id="f-pts40" value="pts40">
-      <label for="f-pts40">40+ Pts</label>
-    </div>
-    <div class="switch">
-      <input type="checkbox" id="f-pts50" value="pts50">
-      <label for="f-pts50">50+ Pts</label>
-    </div>
-    <div class="switch">
-      <input type="checkbox" id="f-tripleDouble" value="tripleDouble">
-      <label for="f-tripleDouble">Triple‑Double</label>
-    </div>
-    <div class="switch">
-      <input type="checkbox" id="f-close4" value="close4">
-      <label for="f-close4">Knapp Q4</label>
-    </div>
-    <div class="switch">
-      <input type="checkbox" id="f-closeGame" value="closeGame">
-      <label for="f-closeGame">Knapp</label>
-    </div>
-    <div class="switch">
-      <input type="checkbox" id="f-overtime" value="overtime">
-      <label for="f-overtime">OT</label>
-    </div>
-  </section>
+  <main class="wrap">
+    <section class="datebar" aria-label="Datum">
+      <button id="prev" class="nav-btn" aria-label="Vortag">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <label class="date-pill">
+        <span id="date-label">…</span>
+        <span id="date-sub" class="date-sub"></span>
+        <input type="date" id="date" aria-label="Datum wählen">
+      </label>
+      <button id="next" class="nav-btn" aria-label="Nächster Tag">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+    </section>
 
-  <section id="controls">
-    <button id="prev" class="control-btn" title="Vortag">←</button>
-    <input type="date" id="date">
-    <button id="next" class="control-btn" title="Nächstetag">→</button>
-    <button id="load" class="control-btn">Laden</button>
-  </section>
+    <section class="filters" aria-label="Filter">
+      <div class="filter-head">
+        <span class="filter-title">Was suchst du?</span>
+        <button id="clear-filters" class="link-btn" hidden>Zurücksetzen</button>
+      </div>
+      <div id="filters" class="chips">
+        <button class="chip chip-watch" data-f="watch" title="Algorithmus-Score aus Spannung, Schlussphase, Führungswechseln, Comebacks, Upsets und Star-Leistungen">🍿 Sehenswert</button>
+        <button class="chip" data-f="closeGame">🔥 Knapp</button>
+        <button class="chip" data-f="close4">⏱️ Knapp vor Q4</button>
+        <button class="chip" data-f="overtime">➕ Verlängerung</button>
+        <button class="chip" data-f="pts30">30+ Pts</button>
+        <button class="chip" data-f="pts40">40+ Pts</button>
+        <button class="chip" data-f="pts50">50+ Pts</button>
+        <button class="chip" data-f="tripleDouble">Triple-Double</button>
+      </div>
+      <p class="hint">Badges siehst du nur für Filter, die du anklickst – so bleibt der Rest eine Überraschung.</p>
+    </section>
 
-  <section id="games"></section>
+    <section id="games" class="games" aria-live="polite"></section>
+  </main>
 
   <template id="game-template">
-    <a class="game" href="" target="_blank">
-      <div class="teams">
-        <img class="logo away" src="" alt="">
-        <span class="name away"></span>
-        <span class="at">@</span>
-        <span class="name home"></span>
-        <img class="logo home" src="" alt="">
+    <article class="card">
+      <div class="card-meta">
+        <span class="meta-type"></span>
+        <span class="meta-series"></span>
       </div>
-      <div class="info">
-        <span class="round"></span>
-        <span class="gameNum"></span>
-        <span class="game-type"></span>
-        <span class="series-text"></span>
+      <div class="matchup">
+        <div class="team away">
+          <img class="logo" alt="" loading="lazy">
+          <span class="tricode"></span>
+          <span class="tname"></span>
+        </div>
+        <div class="vs">@</div>
+        <div class="team home">
+          <img class="logo" alt="" loading="lazy">
+          <span class="tricode"></span>
+          <span class="tname"></span>
+        </div>
       </div>
       <div class="badges"></div>
-    </a>
+      <div class="actions">
+        <a class="btn-play" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>
+          <span class="btn-label">All Possessions</span>
+        </a>
+        <a class="btn-ghost" rel="noopener" title="Spielseite auf nba.com">Spielseite</a>
+      </div>
+    </article>
   </template>
 
-  <script src="/static/script.js"></script>
+  <dialog id="settings" class="sheet" aria-labelledby="settings-title">
+    <form method="dialog" class="sheet-head">
+      <h2 id="settings-title">Einstellungen</h2>
+      <button class="icon-btn" aria-label="Schließen" value="close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </form>
+
+    <section class="sheet-section">
+      <h3>NBA-Account</h3>
+      <p class="muted">Deine NBA-ID (League Pass). Das Passwort wird verschlüsselt auf deinem Server gespeichert und nie wieder an den Browser geschickt.</p>
+      <form id="account-form" autocomplete="on">
+        <label class="field">
+          <span>E-Mail</span>
+          <input type="email" id="nba-email" name="username" autocomplete="username" placeholder="du@beispiel.at" required>
+        </label>
+        <label class="field">
+          <span>Passwort</span>
+          <div class="pw-wrap">
+            <input type="password" id="nba-password" name="password" autocomplete="current-password" placeholder="••••••••">
+            <button type="button" id="toggle-pw" class="pw-toggle" aria-label="Passwort anzeigen">👁</button>
+          </div>
+          <small id="pw-hint" class="muted"></small>
+        </label>
+        <div id="account-status" class="status" hidden></div>
+        <div class="row">
+          <button type="submit" class="btn primary">Speichern</button>
+          <button type="button" id="check-login" class="btn">Login testen</button>
+          <button type="button" id="delete-account" class="btn danger" hidden>Entfernen</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="sheet-section">
+      <h3>Anzeige</h3>
+      <label class="toggle">
+        <input type="checkbox" id="opt-show-badges">
+        <span class="track"></span>
+        <span>Alle Badges immer anzeigen <small class="muted">(verrät, welche Spiele spannend waren)</small></span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="opt-new-tab" checked>
+        <span class="track"></span>
+        <span>Links in neuem Tab öffnen</span>
+      </label>
+    </section>
+
+    <section class="sheet-section">
+      <h3>Wie wird „Sehenswert“ berechnet?</h3>
+      <p class="muted">Ein Score von 0–100 aus der Siegwahrscheinlichkeit pro Spielzug (ESPN), verglichen mit knapp 400 Spielen der Vorsaison:
+        <strong>Spannung</strong> über das ganze Spiel (Excitement Index, 26 %),
+        <strong>Schlussphase</strong> – Schwankungen und offener Ausgang in den letzten Minuten (28 %),
+        <strong>Star-Leistung</strong> (16 %), <strong>Comeback</strong> (12 %),
+        <strong>Führungswechsel</strong> (10 %), <strong>Upset</strong> des Außenseiters (8 %),
+        plus Bonus für Verlängerung und Triple-Double. Ab 70 Punkten gilt ein Spiel als sehenswert – das trifft auf etwa jedes fünfte Spiel zu.</p>
+    </section>
+
+    <section class="sheet-section tip">
+      <h3>Tipp gegen Spoiler auf nba.com</h3>
+      <p class="muted">Der Link öffnet direkt den „All Possessions“-Stream im nba.com-Player. Schalte in deinem nba.com-Profil <strong>„Hide Scores“</strong> ein, damit die Spielseite keine Ergebnisse zeigt. Die Zeitleiste im NBA-Player selbst lässt sich von hier aus nicht ausblenden – am besten gleich in den Vollbildmodus wechseln.</p>
+    </section>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
